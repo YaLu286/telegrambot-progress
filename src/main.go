@@ -70,10 +70,12 @@ func remove_str_from_arr(s []string, r string) []string {
 
 var RedisClient *redis.Client
 
-func update_filters(category string, update *tgbotapi.Update, ctx *context.Context, callback *tgbotapi.CallbackConfig) {
+func update_filters(category string, update *tgbotapi.Update, callback *tgbotapi.CallbackConfig, rd *redis.Client) {
+
+	ctx := context.Background()
 
 	var new_filters_str string
-	current_filters_array := strings.Split(RedisClient.HGetAll(*ctx, fmt.Sprint(update.CallbackQuery.From.ID)).Val()[category], ",")
+	current_filters_array := strings.Split(rd.HGetAll(ctx, fmt.Sprint(update.CallbackQuery.From.ID)).Val()[category], ",")
 
 	if !slices.Contains(current_filters_array, update.CallbackQuery.Data) {
 		current_filters_str := strings.Join(current_filters_array, ",")
@@ -86,7 +88,7 @@ func update_filters(category string, update *tgbotapi.Update, ctx *context.Conte
 		callback.Text = "Удалён фильтр: " + update.CallbackQuery.Data
 	}
 
-	RedisClient.HSet(*ctx, fmt.Sprint(update.CallbackQuery.From.ID), category, new_filters_str)
+	rd.HSet(ctx, fmt.Sprint(update.CallbackQuery.From.ID), category, new_filters_str)
 }
 
 func main() {
@@ -171,8 +173,8 @@ func main() {
 						panic(err)
 					}
 				}
+
 			case "Фильтры":
-				// SearchMode = true
 				RedisClient.HSet(ctx, fmt.Sprint(UserID), "state", "filters")
 				msg.Text = "Выберите фильтры"
 				msg.ReplyMarkup = filtersSelectKeyboard
@@ -182,23 +184,6 @@ func main() {
 				msg.Text = "Нажмите [Taplist] для получения всего списка пива/сидра в бутылках.\nНажмите [Find] для поиска бутылок по категориям."
 				bot.Send(msg)
 
-			case "Стили":
-				msg.ReplyMarkup = styleSelectKeyboard
-				msg.Text = "Выберите предпочитаемые стили"
-				bot.Send(msg)
-
-			case "Пивоварни":
-				msg.ReplyMarkup = brewerySelectKeyboard
-				msg.Text = "Выберите предпочитаемые пивоварни"
-				bot.Send(msg)
-
-			case "Сбросить":
-
-			case "Назад":
-				RedisClient.HSet(ctx, fmt.Sprint(UserID), "state", "start")
-				msg.ReplyMarkup = commandKeyboard
-				msg.Text = "<<<"
-				bot.Send(msg)
 			}
 
 		} else if update.CallbackQuery != nil {
@@ -224,59 +209,21 @@ func main() {
 				}
 			}
 
-			if update.CallbackQuery.Message.Text == "Выберите предпочитаемые стили" {
+			if update.CallbackQuery.Message.Text == "Выберите предпочитаемые стили" || update.CallbackQuery.Message.Text == "Выберите предпочитаемые пивоварни" {
 
 				if update.CallbackQuery.Data == "back" {
-					re_msg := tgbotapi.NewEditMessageText(UserID, update.CallbackQuery.Message.MessageID, update.CallbackQuery.Message.Text)
-					re_msg.Text = "Выберите фильтры"
+					re_msg := tgbotapi.NewEditMessageText(UserID, update.CallbackQuery.Message.MessageID, "Выберите фильтры")
 					re_msg.ReplyMarkup = &filtersSelectKeyboard
 					bot.Send(re_msg)
 				} else {
-
-					update_filters("style", &update, &ctx, &callback)
-
-					// var new_styles_str string
-					// current_styles_array := strings.Split(RedisClient.HGetAll(ctx, fmt.Sprint(update.CallbackQuery.From.ID)).Val()["style"], ",")
-
-					// if !slices.Contains(current_styles_array, update.CallbackQuery.Data) {
-					// 	current_styles_str := strings.Join(current_styles_array, ",")
-					// 	current_styles_array = remove_str_from_arr(current_styles_array, "")
-					// 	new_styles_str = strings.Join([]string{current_styles_str, update.CallbackQuery.Data}, ",")
-					// 	callback.Text = "Добавлен фильтр: " + update.CallbackQuery.Data
-					// } else {
-					// 	current_styles_array = remove_str_from_arr(current_styles_array, update.CallbackQuery.Data)
-					// 	new_styles_str = strings.Join(current_styles_array, ",")
-					// 	callback.Text = "Удалён фильтр: " + update.CallbackQuery.Data
-					// }
-
-					// RedisClient.HSet(ctx, fmt.Sprint(update.CallbackQuery.From.ID), "style", new_styles_str)
-				}
-
-			} else if update.CallbackQuery.Message.Text == "Выберите предпочитаемые пивоварни" {
-
-				if update.CallbackQuery.Data == "back" {
-					re_msg := tgbotapi.NewEditMessageText(UserID, update.CallbackQuery.Message.MessageID, update.CallbackQuery.Message.Text)
-					re_msg.ReplyMarkup = &filtersSelectKeyboard
-					bot.Send(re_msg)
-				} else {
-
-					update_filters("brewery", &update, &ctx, &callback)
-
-					// var new_breweries_str string
-					// current_breweries_array := strings.Split(RedisClient.HGetAll(ctx, fmt.Sprint(update.CallbackQuery.From.ID)).Val()["brewery"], ",")
-
-					// if !slices.Contains(current_breweries_array, update.CallbackQuery.Data) {
-					// 	current_breweries_str := strings.Join(current_breweries_array, ",")
-					// 	current_breweries_array = remove_str_from_arr(current_breweries_array, "")
-					// 	new_breweries_str = strings.Join([]string{current_breweries_str, update.CallbackQuery.Data}, ",")
-					// 	callback.Text = "Добавлен фильтр: " + update.CallbackQuery.Data
-					// } else {
-					// 	current_breweries_array = remove_str_from_arr(current_breweries_array, update.CallbackQuery.Data)
-					// 	new_breweries_str = strings.Join(current_breweries_array, ",")
-					// 	callback.Text = "Удалён фильтр: " + update.CallbackQuery.Data
-					// }
-
-					// RedisClient.HSet(ctx, fmt.Sprint(update.CallbackQuery.From.ID), "brewery", new_breweries_str)
+					var category string
+					switch update.CallbackQuery.Message.Text {
+					case "Выберите предпочитаемые стили":
+						category = "style"
+					case "Выберите предпочитаемые пивоварни":
+						category = "brewery"
+					}
+					update_filters(category, &update, &callback, RedisClient)
 				}
 
 			}
