@@ -40,6 +40,11 @@ var styleSelectKeyboard = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardButtonData("Sour - Fruited", "Sour - Fruited"),
 	),
 	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("NE Pale Ale", "NE Pale Ale"),
+		tgbotapi.NewInlineKeyboardButtonData("Gose", "Gose"),
+		tgbotapi.NewInlineKeyboardButtonData("Sour - Fruited", "Sour - Fruited"),
+	),
+	tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("Назад", "back"),
 	),
 )
@@ -70,12 +75,12 @@ func remove_str_from_arr(s []string, r string) []string {
 
 var RedisClient *redis.Client
 
-func update_filters(category string, update *tgbotapi.Update, callback *tgbotapi.CallbackConfig, rd *redis.Client) {
+func update_filters(category string, update *tgbotapi.Update, callback *tgbotapi.CallbackConfig) {
 
 	ctx := context.Background()
 
 	var new_filters_str string
-	current_filters_array := strings.Split(rd.HGetAll(ctx, fmt.Sprint(update.CallbackQuery.From.ID)).Val()[category], ",")
+	current_filters_array := strings.Split(RedisClient.HGetAll(ctx, fmt.Sprint(update.CallbackQuery.From.ID)).Val()[category], ",")
 
 	if !slices.Contains(current_filters_array, update.CallbackQuery.Data) {
 		current_filters_str := strings.Join(current_filters_array, ",")
@@ -88,7 +93,7 @@ func update_filters(category string, update *tgbotapi.Update, callback *tgbotapi
 		callback.Text = "Удалён фильтр: " + update.CallbackQuery.Data
 	}
 
-	rd.HSet(ctx, fmt.Sprint(update.CallbackQuery.From.ID), category, new_filters_str)
+	RedisClient.HSet(ctx, fmt.Sprint(update.CallbackQuery.From.ID), category, new_filters_str)
 }
 
 func main() {
@@ -106,13 +111,11 @@ func main() {
 
 	updates := bot.GetUpdatesChan(updateConfig)
 
-	RedisClient := redis.NewClient(&redis.Options{
+	RedisClient = redis.NewClient(&redis.Options{
 		Addr:     "localhost:6379",
 		Password: "", // no password set
 		DB:       0,  // use default DB
 	})
-
-	// var SearchMode bool = false
 
 	for update := range updates {
 
@@ -124,26 +127,24 @@ func main() {
 			msg := tgbotapi.NewMessage(UserID, "")
 
 			msg.ReplyMarkup = commandKeyboard
+			msg.ParseMode = "markdown"
 
 			switch update.Message.Text {
 			case "/start":
-				msg.ReplyMarkup = commandKeyboard
-				msg.Text = "Добро пожаловать в Прогресс на Соколе!\n С помощью этого бота вы можете ознакомиться с актуальным ассортиментом бутылочного пива и подобрать его по своим собственным предпочтениям"
+				photo := tgbotapi.NewPhoto(UserID, tgbotapi.FilePath("/Users/yalu/images/progress.jpg"))
+				photo.ParseMode = "markdown"
+				photo.Caption = "Добро пожаловать в *Прогресс на Соколе*!\nС помощью этого бота вы можете ознакомиться с актуальным ассортиментом бутылочного пива/сидра и подобрать его по своим собственным предпочтениям\n📞Телефон:+7(925)433-52-94\n📩Email: progress.sokol@gmail.com"
+				photo.ReplyMarkup = commandKeyboard
+				bot.Send(photo)
 				err := RedisClient.HSet(ctx, fmt.Sprint(UserID), "state", "start").Err()
 				if err != nil {
 					panic(err)
 				}
-				bot.Send(msg)
 			case "Инфо":
-
-				msg.Text = "Добро пожаловать в Прогресс на Соколе!\n С помощью этого бота вы можете ознакомиться с актуальным ассортиментом бутылочного пива и подобрать его по своим собственным предпочтениям"
-				bot.Send(msg)
-				msg.Text, _ = RedisClient.HGetAll(ctx, fmt.Sprint(UserID)).Val()["state"]
-				bot.Send(msg)
-				msg.Text, _ = RedisClient.HGetAll(ctx, fmt.Sprint(UserID)).Val()["style"]
-				bot.Send(msg)
-				msg.Text, _ = RedisClient.HGetAll(ctx, fmt.Sprint(UserID)).Val()["brewery"]
-				bot.Send(msg)
+				photo := tgbotapi.NewPhoto(UserID, tgbotapi.FilePath("/Users/yalu/images/progress.jpg"))
+				photo.ParseMode = "markdown"
+				photo.Caption = "Добро пожаловать в *Прогресс на Соколе*!\nС помощью этого бота вы можете ознакомиться с актуальным ассортиментом бутылочного пива и подобрать его по своим собственным предпочтениям\nТелефон:+7(925)433-52-94\nEmail: progress.sokol@gmail.com"
+				bot.Send(photo)
 
 			case "Список":
 				var favorite_breweries []string
@@ -181,9 +182,9 @@ func main() {
 				bot.Send(msg)
 
 			case "Помощь":
-				msg.Text = "Нажмите [Taplist] для получения всего списка пива/сидра в бутылках.\nНажмите [Find] для поиска бутылок по категориям."
-				bot.Send(msg)
 
+				msg.Text = "Нажмите *Список* для получения списка пива/сидра в бутылках.\nНажмите *Фильтры* для редактирования поисковых фильтров\nНажмите *Инфо* для отображения начального сообщения с информацией\nНажмите *Помощь*, чтобы снова увидеть данное сообщение."
+				bot.Send(msg)
 			}
 
 		} else if update.CallbackQuery != nil {
@@ -223,7 +224,7 @@ func main() {
 					case "Выберите предпочитаемые пивоварни":
 						category = "brewery"
 					}
-					update_filters(category, &update, &callback, RedisClient)
+					update_filters(category, &update, &callback)
 				}
 
 			}
