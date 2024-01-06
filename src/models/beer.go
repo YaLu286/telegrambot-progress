@@ -6,8 +6,8 @@ type Beer struct {
 	Brewery   string
 	Style     string
 	Brief     string
-	ABV       float32
-	Rate      float32
+	ABV       float64
+	Rate      float64
 	ImagePath string
-	Price     int16
+	Price     int
 }

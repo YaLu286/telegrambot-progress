@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/redis/go-redis/v9"
 	"os"
-	"slices"
 	"strings"
 	"telegrambot/progress/admin"
 	"telegrambot/progress/controllers"
@@ -65,38 +63,6 @@ var brewerySelectKeyboard = tgbotapi.NewInlineKeyboardMarkup(
 	),
 )
 
-func remove_str_from_arr(s []string, r string) []string {
-	for i, v := range s {
-		if v == r {
-			return append(s[:i], s[i+1:]...)
-		}
-	}
-	return s
-}
-
-var RedisClient *redis.Client
-
-func update_filters(category string, update *tgbotapi.Update, callback *tgbotapi.CallbackConfig) {
-
-	ctx := context.Background()
-	filter := update.CallbackQuery.Data
-	var new_filters_str string
-	current_filters_array := strings.Split(RedisClient.HGetAll(ctx, fmt.Sprint(update.CallbackQuery.From.ID)).Val()[category], ",")
-
-	if !slices.Contains(current_filters_array, filter) {
-		current_filters_str := strings.Join(current_filters_array, ",")
-		current_filters_array = remove_str_from_arr(current_filters_array, "")
-		new_filters_str = strings.Join([]string{current_filters_str, filter}, ",")
-		callback.Text = "Добавлен фильтр: " + filter
-	} else {
-		current_filters_array = remove_str_from_arr(current_filters_array, filter)
-		new_filters_str = strings.Join(current_filters_array, ",")
-		callback.Text = "Удалён фильтр: " + filter
-	}
-
-	RedisClient.HSet(ctx, fmt.Sprint(update.CallbackQuery.From.ID), category, new_filters_str)
-}
-
 func main() {
 	bot, err := tgbotapi.NewBotAPI(os.Getenv("TELEGRAM_APITOKEN"))
 	if err != nil {
@@ -106,22 +72,15 @@ func main() {
 
 	models.ConnectDatabase()
 
+	controllers.ConnectRedis()
+
 	updateConfig := tgbotapi.NewUpdate(0)
 
 	updateConfig.Timeout = 30
 
 	updates := bot.GetUpdatesChan(updateConfig)
 
-	var admMode bool = false
-	var admID int64
 	var admChan chan tgbotapi.Update = make(chan tgbotapi.Update)
-	var admCtrlChan chan bool = make(chan bool, 1)
-
-	RedisClient = redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "", // no password set
-		DB:       0,  // use default DB
-	})
 
 	for update := range updates {
 
@@ -130,16 +89,11 @@ func main() {
 		if update.Message != nil {
 
 			UserID := update.Message.From.ID
+			UserState := controllers.GetUserState(UserID)
 
-			if admMode && UserID == admID {
+			if UserState == "admin" {
 
 				admChan <- update
-
-				select {
-				case admMode = <-admCtrlChan:
-				default:
-					admMode = true
-				}
 
 			} else {
 
@@ -150,52 +104,28 @@ func main() {
 
 				switch update.Message.Text {
 				case "/start":
+
 					photo := tgbotapi.NewPhoto(UserID, tgbotapi.FilePath("/Users/yalu/images/progress.jpg"))
 					photo.ParseMode = "markdown"
 					photo.Caption = "Добро пожаловать в *Прогресс на Соколе*!\nС помощью этого бота вы можете ознакомиться с актуальным ассортиментом бутылочного пива/сидра и подобрать его по своим собственным предпочтениям\n📞Телефон:+7(925)433-52-94\n📩Email: progress.sokol@gmail.com"
 					photo.ReplyMarkup = commandKeyboard
 					bot.Send(photo)
-					err := RedisClient.HSet(ctx, fmt.Sprint(UserID), "state", "start").Err()
-					if err != nil {
-						panic(err)
-					}
+					controllers.SetUserState(UserID, "start")
+
 				case "Инфо":
+
 					photo := tgbotapi.NewPhoto(UserID, tgbotapi.FilePath("/Users/yalu/images/progress.jpg"))
 					photo.ParseMode = "markdown"
 					photo.Caption = "Добро пожаловать в *Прогресс на Соколе*!\nС помощью этого бота вы можете ознакомиться с актуальным ассортиментом бутылочного пива и подобрать его по своим собственным предпочтениям\nТелефон:+7(925)433-52-94\nEmail: progress.sokol@gmail.com"
 					bot.Send(photo)
 
 				case "Список":
-					var favorite_breweries []string
-					var favorite_styles []string
-					favorite_breweries = strings.Split(RedisClient.HGetAll(ctx, fmt.Sprint(UserID)).Val()["brewery"], ",")
-					favorite_styles = strings.Split(RedisClient.HGetAll(ctx, fmt.Sprint(UserID)).Val()["style"], ",")
-					favorite_breweries = remove_str_from_arr(favorite_breweries, "")
-					favorite_styles = remove_str_from_arr(favorite_styles, "")
 
-					var bottles []models.Beer
-
-					if len(favorite_breweries) == 0 && len(favorite_styles) == 0 {
-						bottles = controllers.FindAllBeer()
-						msg.Text = "Фильтры\nПивоварни: -\nСтили: -"
-					} else {
-						bottles = controllers.FindBeer(favorite_breweries, favorite_styles)
-						msg.Text = "Фильтры\nПивоварни: " + strings.Join(favorite_breweries, ", ") + "\nСтили: " + strings.Join(favorite_styles, ", ")
-					}
-					bot.Send(msg)
-					for _, bottle := range bottles {
-						bottle_description := fmt.Sprintf("%s от %s \nСтиль: %s\nABV: %.2f Rate: %.2f\n%s\n%d₽", bottle.Name, bottle.Brewery,
-							bottle.Style, bottle.ABV,
-							bottle.Rate, bottle.Brief, bottle.Price)
-						photo := tgbotapi.NewPhoto(update.Message.From.ID, tgbotapi.FilePath(bottle.ImagePath))
-						photo.Caption = bottle_description
-						if _, err = bot.Send(photo); err != nil {
-							panic(err)
-						}
-					}
+					controllers.DisplayBeerist(bot, update)
 
 				case "Фильтры":
-					RedisClient.HSet(ctx, fmt.Sprint(UserID), "state", "filters")
+
+					controllers.RedisClient.HSet(ctx, fmt.Sprint(UserID), "state", "filters")
 					msg.Text = "Выберите фильтры"
 					msg.ReplyMarkup = filtersSelectKeyboard
 					bot.Send(msg)
@@ -203,64 +133,72 @@ func main() {
 				case "Помощь":
 
 					msg.Text = "Нажмите *Список* для получения списка пива/сидра в бутылках.\nНажмите *Фильтры* для редактирования поисковых фильтров\nНажмите *Инфо* для отображения начального сообщения с информацией\nНажмите *Помощь*, чтобы снова увидеть данное сообщение."
-
 					bot.Send(msg)
 
 				case "/admin":
-					if admin.Auth(UserID) && !admMode {
-						admMode = true
-						admID = UserID
-						go admin.AdmPanel(bot, admChan, admCtrlChan)
+					if admin.Auth(UserID) {
+						// admMode = true
+						controllers.SetUserState(UserID, "admin")
+						go admin.AdmPanel(bot, admChan)
 					}
 				}
 			}
 
 		} else if update.CallbackQuery != nil {
 
-			callback := tgbotapi.NewCallback(update.CallbackQuery.ID, "")
 			UserID := update.CallbackQuery.From.ID
+			UserState := controllers.GetUserState(UserID)
 
-			if update.CallbackQuery.Message.Text == "Выберите фильтры" {
-				re_msg := tgbotapi.NewEditMessageText(UserID, update.CallbackQuery.Message.MessageID, update.CallbackQuery.Message.Text)
-				switch update.CallbackQuery.Data {
-				case "styles":
-					re_msg.Text = "Выберите предпочитаемые стили"
-					re_msg.ReplyMarkup = &styleSelectKeyboard
-					bot.Send(re_msg)
-				case "breweries":
-					re_msg.Text = "Выберите предпочитаемые пивоварни"
-					re_msg.ReplyMarkup = &brewerySelectKeyboard
-					bot.Send(re_msg)
-				case "clear":
-					RedisClient.HDel(ctx, fmt.Sprint(UserID), "style")
-					RedisClient.HDel(ctx, fmt.Sprint(UserID), "brewery")
-					callback.Text = "Фильтры сброшены"
-				}
-			}
+			if UserState == "admin" {
 
-			if update.CallbackQuery.Message.Text == "Выберите предпочитаемые стили" || update.CallbackQuery.Message.Text == "Выберите предпочитаемые пивоварни" {
+				admChan <- update
 
-				if update.CallbackQuery.Data == "back" {
-					re_msg := tgbotapi.NewEditMessageText(UserID, update.CallbackQuery.Message.MessageID, "Выберите фильтры")
-					re_msg.ReplyMarkup = &filtersSelectKeyboard
-					bot.Send(re_msg)
-				} else {
-					var category string
-					switch update.CallbackQuery.Message.Text {
-					case "Выберите предпочитаемые стили":
-						category = "style"
-					case "Выберите предпочитаемые пивоварни":
-						category = "brewery"
+			} else {
+
+				callback := tgbotapi.NewCallback(update.CallbackQuery.ID, "")
+
+				if update.CallbackQuery.Message.Text == "Выберите фильтры" {
+					re_msg := tgbotapi.NewEditMessageText(UserID, update.CallbackQuery.Message.MessageID, update.CallbackQuery.Message.Text)
+					switch update.CallbackQuery.Data {
+					case "styles":
+						re_msg.Text = "Выберите предпочитаемые стили"
+						re_msg.ReplyMarkup = &styleSelectKeyboard
+						bot.Send(re_msg)
+					case "breweries":
+						re_msg.Text = "Выберите предпочитаемые пивоварни"
+						re_msg.ReplyMarkup = &brewerySelectKeyboard
+						bot.Send(re_msg)
+					case "clear":
+						controllers.RedisClient.HDel(ctx, fmt.Sprint(UserID), "style")
+						controllers.RedisClient.HDel(ctx, fmt.Sprint(UserID), "brewery")
+						callback.Text = "Фильтры сброшены"
 					}
-					update_filters(category, &update, &callback)
+				}
+
+				if update.CallbackQuery.Message.Text == "Выберите предпочитаемые стили" || update.CallbackQuery.Message.Text == "Выберите предпочитаемые пивоварни" {
+
+					if update.CallbackQuery.Data == "back" {
+						re_msg := tgbotapi.NewEditMessageText(UserID, update.CallbackQuery.Message.MessageID, "Выберите фильтры")
+						re_msg.ReplyMarkup = &filtersSelectKeyboard
+						bot.Send(re_msg)
+					} else {
+						var category string
+						switch update.CallbackQuery.Message.Text {
+						case "Выберите предпочитаемые стили":
+							category = "style"
+						case "Выберите предпочитаемые пивоварни":
+							category = "brewery"
+						}
+						controllers.UpdateFilters(category, &update, &callback)
+					}
+
+				}
+
+				if _, err := bot.Request(callback); err != nil {
+					panic(err)
 				}
 
 			}
-
-			if _, err := bot.Request(callback); err != nil {
-				panic(err)
-			}
-
 		}
 
 	}
