@@ -63,8 +63,8 @@ func CreateBeer(newBeer models.Beer) {
 	models.DB.Create(&newBeer)
 }
 
-func DeleteBeer() {
-
+func DeleteBeer(deleteID int64) error {
+	return models.DB.Delete(&models.Beer{}, deleteID).Error
 }
 
 func ChangeBeer() {

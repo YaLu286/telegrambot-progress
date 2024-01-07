@@ -5,7 +5,6 @@ import (
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"os"
-	"strings"
 	"telegrambot/progress/admin"
 	"telegrambot/progress/controllers"
 	"telegrambot/progress/models"
@@ -63,6 +62,19 @@ var brewerySelectKeyboard = tgbotapi.NewInlineKeyboardMarkup(
 	),
 )
 
+type ChanRoute struct {
+	AdminID int64
+	AdmChan chan tgbotapi.Update
+}
+
+func SendUpdateToAdmin(ChanRoutes []ChanRoute, AdminID int64, Update tgbotapi.Update) {
+	for _, route := range ChanRoutes {
+		if route.AdminID == AdminID {
+			route.AdmChan <- Update
+		}
+	}
+}
+
 func main() {
 	bot, err := tgbotapi.NewBotAPI(os.Getenv("TELEGRAM_APITOKEN"))
 	if err != nil {
@@ -80,7 +92,9 @@ func main() {
 
 	updates := bot.GetUpdatesChan(updateConfig)
 
-	var admChan chan tgbotapi.Update = make(chan tgbotapi.Update)
+	var ChanRoutes []ChanRoute
+
+	// var admChan chan tgbotapi.Update = make(chan tgbotapi.Update)
 
 	for update := range updates {
 
@@ -93,7 +107,7 @@ func main() {
 
 			if UserState == "admin" {
 
-				admChan <- update
+				SendUpdateToAdmin(ChanRoutes, UserID, update)
 
 			} else {
 
@@ -139,7 +153,11 @@ func main() {
 					if admin.Auth(UserID) {
 						// admMode = true
 						controllers.SetUserState(UserID, "admin")
-						go admin.AdmPanel(bot, admChan)
+						var NewChanRoute ChanRoute
+						NewChanRoute.AdminID = UserID
+						NewChanRoute.AdmChan = make(chan tgbotapi.Update)
+						ChanRoutes = append(ChanRoutes, NewChanRoute)
+						go admin.AdmPanel(bot, ChanRoutes[len(ChanRoutes)-1].AdmChan)
 					}
 				}
 			}
@@ -151,7 +169,7 @@ func main() {
 
 			if UserState == "admin" {
 
-				admChan <- update
+				SendUpdateToAdmin(ChanRoutes, UserID, update)
 
 			} else {
 

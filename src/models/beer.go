@@ -10,4 +10,8 @@ type Beer struct {
 	Rate      float64
 	ImagePath string
 	Price     int
+	Presnya   bool
+	Rizhskaya bool
+	Sokol     bool
+	Frunza    bool
 }
