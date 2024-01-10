@@ -1,11 +1,10 @@
 package admin
 
 import (
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"net/http"
-	// "net/url"
 	"fmt"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"io"
+	"net/http"
 	"os"
 	"strconv"
 	"telegrambot/progress/controllers"
@@ -59,14 +58,20 @@ var adminChangeKeyboard = tgbotapi.NewReplyKeyboard(
 
 var actionChoiseKeyboard = tgbotapi.NewInlineKeyboardMarkup(
 	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Изменить", "change"),
 		tgbotapi.NewInlineKeyboardButtonData("Удалить", "delete"),
+		tgbotapi.NewInlineKeyboardButtonData("Изменить", "change"),
+		tgbotapi.NewInlineKeyboardButtonData("В наличии/Нет", "available_switch"),
 	),
 )
 
 func Auth(UserID int64) bool {
 	var user models.User
 	models.DB.First(&user, "id = ?", UserID)
+	if user.IsAdmin {
+		controllers.SetUserState(UserID, "admin")
+		AdmMode := user.AdminMode
+		controllers.SetAdminMode(UserID, AdmMode)
+	}
 	return user.IsAdmin
 }
 
@@ -138,31 +143,8 @@ func CreateBeerPanel(bot *tgbotapi.BotAPI, admChan chan tgbotapi.Update) {
 	SavePhoto(photoURL, fileName)
 	newBeer.ImagePath = fileName
 
-	controllers.CreateBeer(newBeer)
+	newBeer.Create()
 }
-
-// var adminChangeKeyboard = tgbotapi.NewReplyKeyboard(
-// 	tgbotapi.NewKeyboardButtonRow(
-// 		tgbotapi.NewKeyboardButton("Название"),
-// 		tgbotapi.NewKeyboardButton("Пивоварня"),
-// 		tgbotapi.NewKeyboardButton("Стиль"),
-// 	),
-// 	tgbotapi.NewKeyboardButtonRow(
-// 		tgbotapi.NewKeyboardButton("Краткое описание"),
-// 	),
-// 	tgbotapi.NewKeyboardButtonRow(
-// 		tgbotapi.NewKeyboardButton("ABV"),
-// 		tgbotapi.NewKeyboardButton("Рейтинг"),
-// 		tgbotapi.NewKeyboardButton("Стоимость"),
-// 	),
-// 	tgbotapi.NewKeyboardButtonRow(
-
-// 	),
-// 	tgbotapi.NewKeyboardButtonRow(
-// 		tgbotapi.NewKeyboardButton("Сохранить изменения"),
-
-// 	),
-// )
 
 func ChangeBeerPanel(bot *tgbotapi.BotAPI, admChan chan tgbotapi.Update, changeID int64, AdminID int64) {
 	var Beer models.Beer
@@ -256,77 +238,6 @@ func ChangeBeerPanel(bot *tgbotapi.BotAPI, admChan chan tgbotapi.Update, changeI
 				if update.Message.Text != "-" {
 					Beer.Price, _ = strconv.Atoi(update.Message.Text)
 				}
-			case "Наличие на Пресне":
-				msg.Text = "В наличии на Пресне:"
-				bot.Send(msg)
-				if Beer.Presnya {
-					msg.Text = "Да"
-				} else {
-					msg.Text = "Нет"
-				}
-				bot.Send(msg)
-				msg.Text = "Введите Да, Нет или - , чтобы пропустить"
-				bot.Send(msg)
-				update = <-admChan
-				switch update.Message.Text {
-				case "Да":
-					Beer.Presnya = true
-				case "Нет":
-					Beer.Presnya = false
-				}
-
-			case "Наличие на Рижской":
-				if Beer.Rizhskaya {
-					msg.Text = "Да"
-				} else {
-					msg.Text = "Нет"
-				}
-				bot.Send(msg)
-				msg.Text = "Введите Да, Нет или - , чтобы пропустить"
-				bot.Send(msg)
-				update = <-admChan
-				switch update.Message.Text {
-				case "Да":
-					Beer.Rizhskaya = true
-				case "Нет":
-					Beer.Rizhskaya = false
-				}
-			case "Наличие на Соколе":
-				msg.Text = "В наличии на Соколе:"
-				bot.Send(msg)
-				if Beer.Sokol {
-					msg.Text = "Да"
-				} else {
-					msg.Text = "Нет"
-				}
-				bot.Send(msg)
-				msg.Text = "Введите Да, Нет или - , чтобы пропустить"
-				bot.Send(msg)
-				update = <-admChan
-				switch update.Message.Text {
-				case "Да":
-					Beer.Sokol = true
-				case "Нет":
-					Beer.Sokol = false
-				}
-			case "Наличие на Фрунзе":
-				msg.Text = "В наличии на Фрунзенской:"
-				bot.Send(msg)
-				if Beer.Frunza {
-					msg.Text = "Да"
-				} else {
-					msg.Text = "Нет"
-				}
-				bot.Send(msg)
-				msg.Text = "Введите Да, Нет или - , чтобы пропустить"
-				bot.Send(msg)
-				update = <-admChan
-				switch update.Message.Text {
-				case "Да":
-					Beer.Frunza = true
-				case "Нет":
-					Beer.Frunza = false
-				}
 
 			case "Сохранить изменения":
 				models.DB.Save(&Beer)
@@ -344,11 +255,33 @@ func DisplayBeerListForAdmin(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 
 	bottles = controllers.FindAllBeer()
 	for _, bottle := range bottles {
-		bottle_description := fmt.Sprintf("ID:%d\nНазвание: %s\nПивоварня: %s\nСтиль: %s\nABV: %.2f\nРейтинг:%.2f\nОписание: %s\nСтоимость:%d₽",
+		var availability string = "❌"
+		var AdmLocation string = controllers.GetAdminMode(update.Message.From.ID)
+		switch AdmLocation {
+		case "presnya":
+			if bottle.Presnya {
+				availability = "✅"
+			}
+		case "rizhskaya":
+			if bottle.Rizhskaya {
+				availability = "✅"
+			}
+		case "sokol":
+			if bottle.Sokol {
+				availability = "✅"
+			}
+		case "frunza":
+			if bottle.Frunza {
+				availability = "✅"
+			}
+		case "root":
+		}
+		bottle_description := fmt.Sprintf("ID:%d\nНазвание: %s\nПивоварня: %s\nСтиль: %s\nABV: %.2f\nРейтинг:%.2f\nОписание: %s\nСтоимость:%d₽\nВ наличии:%s",
 			bottle.ID, bottle.Name,
 			bottle.Brewery, bottle.Style,
 			bottle.ABV, bottle.Rate,
-			bottle.Brief, bottle.Price)
+			bottle.Brief, bottle.Price,
+			availability)
 		photo := tgbotapi.NewPhoto(update.Message.From.ID, tgbotapi.FilePath(bottle.ImagePath))
 		photo.Caption = bottle_description
 		photo.ReplyMarkup = actionChoiseKeyboard
@@ -372,7 +305,8 @@ func AdmPanel(bot *tgbotapi.BotAPI, admChan chan tgbotapi.Update) {
 				DisplayBeerListForAdmin(bot, update)
 			case "Выйти":
 				controllers.SetUserState(UserID, "start")
-				break
+				defer close(admChan)
+				return
 			default:
 				msg := tgbotapi.NewMessage(UserID, "Режим администрирования")
 				msg.ReplyMarkup = adminCommandKeyboard
@@ -387,11 +321,46 @@ func AdmPanel(bot *tgbotapi.BotAPI, admChan chan tgbotapi.Update) {
 				msg := tgbotapi.NewMessage(update.CallbackQuery.From.ID, "Изменение позиции")
 				bot.Send(msg)
 				ChangeBeerPanel(bot, admChan, changeID, update.CallbackQuery.From.ID)
+			case "available_switch":
+				text := update.CallbackQuery.Message.Caption
+				var beerID int64
+				fmt.Sscanf(text, "ID:%d", &beerID)
+				var beer models.Beer
+				models.DB.Find(&beer, beerID)
+				var availability string = "❌"
+				switch controllers.GetAdminMode(update.CallbackQuery.From.ID) {
+				case "presnya":
+					beer.Presnya = !beer.Presnya
+					if beer.Presnya {
+						availability = "✅"
+					}
+				case "rizhskaya":
+					beer.Rizhskaya = !beer.Rizhskaya
+					if beer.Rizhskaya {
+						availability = "✅"
+					}
+				case "sokol":
+					beer.Sokol = !beer.Sokol
+					if beer.Sokol {
+						availability = "✅"
+					}
+				case "frunza":
+					beer.Frunza = !beer.Frunza
+					if beer.Frunza {
+						availability = "✅"
+					}
+				}
+				models.DB.Save(&beer)
+				re_msg := tgbotapi.NewEditMessageText(update.CallbackQuery.From.ID, update.CallbackQuery.Message.MessageID, "")
+				fmt.Sscanf(text, "%sВ наличии:", &text)
+				re_msg.Text = text + "В наличии:" + availability
+				bot.Send(re_msg)
+
 			case "delete":
 				text := update.CallbackQuery.Message.Caption
-				var deleteID int64
-				fmt.Sscanf(text, "ID:%d%s", &deleteID, &text)
-				if err := controllers.DeleteBeer(deleteID); err == nil {
+				var deleteBeer models.Beer
+				fmt.Sscanf(text, "ID:%d%s", &deleteBeer.ID, &text)
+				if err := deleteBeer.Delete(); err == nil {
 					CallbackMsg := tgbotapi.NewCallback(update.CallbackQuery.ID, "Позиция удалена")
 					DelMsg := tgbotapi.NewDeleteMessage(update.CallbackQuery.From.ID, update.CallbackQuery.Message.MessageID)
 					bot.Request(CallbackMsg)

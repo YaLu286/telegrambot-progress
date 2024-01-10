@@ -1,6 +1,7 @@
 package models
 
 type User struct {
-	ID      int64
-	IsAdmin bool
+	ID        int64
+	IsAdmin   bool
+	AdminMode string
 }

@@ -3,63 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"os"
+	"strconv"
 	"telegrambot/progress/admin"
 	"telegrambot/progress/controllers"
+	"telegrambot/progress/keyboards"
 	"telegrambot/progress/models"
-)
 
-var commandKeyboard = tgbotapi.NewReplyKeyboard(
-	tgbotapi.NewKeyboardButtonRow(
-		tgbotapi.NewKeyboardButton("Список"),
-		tgbotapi.NewKeyboardButton("Инфо"),
-	),
-	tgbotapi.NewKeyboardButtonRow(
-		tgbotapi.NewKeyboardButton("Фильтры"),
-		tgbotapi.NewKeyboardButton("Помощь"),
-	),
-)
-
-var filtersSelectKeyboard = tgbotapi.NewInlineKeyboardMarkup(
-	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Стили", "styles"),
-		tgbotapi.NewInlineKeyboardButtonData("Пивоварни", "breweries"),
-	),
-	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Сбросить", "clear"),
-	),
-)
-
-var styleSelectKeyboard = tgbotapi.NewInlineKeyboardMarkup(
-	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("APA", "APA"),
-		tgbotapi.NewInlineKeyboardButtonData("Lager", "Lager"),
-		tgbotapi.NewInlineKeyboardButtonData("Sour - Fruited", "Sour - Fruited"),
-	),
-	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("NE Pale Ale", "NE Pale Ale"),
-		tgbotapi.NewInlineKeyboardButtonData("Gose", "Gose"),
-		tgbotapi.NewInlineKeyboardButtonData("Sour - Fruited", "Sour - Fruited"),
-	),
-	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Назад", "back"),
-	),
-)
-
-var brewerySelectKeyboard = tgbotapi.NewInlineKeyboardMarkup(
-	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("AFBrew", "AFBrew"),
-		tgbotapi.NewInlineKeyboardButtonData("Zavod", "Zavod"),
-		tgbotapi.NewInlineKeyboardButtonData("4Brewers", "4Brewers"),
-	),
-	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Stamm Brewing", "Stamm Brewing"),
-		tgbotapi.NewInlineKeyboardButtonData("Red Button", "Red Button"),
-	),
-	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Назад", "back"),
-	),
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 type ChanRoute struct {
@@ -70,7 +21,14 @@ type ChanRoute struct {
 func SendUpdateToAdmin(ChanRoutes []ChanRoute, AdminID int64, Update tgbotapi.Update) {
 	for _, route := range ChanRoutes {
 		if route.AdminID == AdminID {
-			route.AdmChan <- Update
+			ok := true
+			select {
+			case _, ok = <-route.AdmChan:
+			default:
+			}
+			if ok {
+				route.AdmChan <- Update
+			}
 		}
 	}
 }
@@ -84,7 +42,7 @@ func main() {
 
 	models.ConnectDatabase()
 
-	controllers.ConnectRedis()
+	models.ConnectRedis()
 
 	updateConfig := tgbotapi.NewUpdate(0)
 
@@ -94,11 +52,11 @@ func main() {
 
 	var ChanRoutes []ChanRoute
 
+	var beer_map map[int64][]models.Beer = make(map[int64][]models.Beer)
+
 	// var admChan chan tgbotapi.Update = make(chan tgbotapi.Update)
 
 	for update := range updates {
-
-		ctx := context.Background()
 
 		if update.Message != nil {
 
@@ -113,46 +71,23 @@ func main() {
 
 				msg := tgbotapi.NewMessage(UserID, "")
 
-				msg.ReplyMarkup = commandKeyboard
+				msg.ReplyMarkup = keyboards.CommandKeyboard
 				msg.ParseMode = "markdown"
 
 				switch update.Message.Text {
 				case "/start":
 
-					photo := tgbotapi.NewPhoto(UserID, tgbotapi.FilePath("/Users/yalu/images/progress.jpg"))
+					photo := tgbotapi.NewPhoto(UserID, tgbotapi.FilePath("/images/progress.jpg"))
 					photo.ParseMode = "markdown"
-					photo.Caption = "Добро пожаловать в *Прогресс на Соколе*!\nС помощью этого бота вы можете ознакомиться с актуальным ассортиментом бутылочного пива/сидра и подобрать его по своим собственным предпочтениям\n📞Телефон:+7(925)433-52-94\n📩Email: progress.sokol@gmail.com"
-					photo.ReplyMarkup = commandKeyboard
+					photo.Caption = "Добро пожаловать в *Прогресс*!\nС помощью этого бота вы можете ознакомиться с актуальным ассортиментом бутылочного пива/сидра и подобрать его по своим собственным предпочтениям.\nЧтобы продолжить, пожалуйста, выберите локацию."
+					photo.ReplyMarkup = keyboards.LocationSelectKeys
 					bot.Send(photo)
-					controllers.SetUserState(UserID, "start")
-
-				case "Инфо":
-
-					photo := tgbotapi.NewPhoto(UserID, tgbotapi.FilePath("/Users/yalu/images/progress.jpg"))
-					photo.ParseMode = "markdown"
-					photo.Caption = "Добро пожаловать в *Прогресс на Соколе*!\nС помощью этого бота вы можете ознакомиться с актуальным ассортиментом бутылочного пива и подобрать его по своим собственным предпочтениям\nТелефон:+7(925)433-52-94\nEmail: progress.sokol@gmail.com"
-					bot.Send(photo)
-
-				case "Список":
-
-					controllers.DisplayBeerist(bot, update)
-
-				case "Фильтры":
-
-					controllers.RedisClient.HSet(ctx, fmt.Sprint(UserID), "state", "filters")
-					msg.Text = "Выберите фильтры"
-					msg.ReplyMarkup = filtersSelectKeyboard
-					bot.Send(msg)
-
-				case "Помощь":
-
-					msg.Text = "Нажмите *Список* для получения списка пива/сидра в бутылках.\nНажмите *Фильтры* для редактирования поисковых фильтров\nНажмите *Инфо* для отображения начального сообщения с информацией\nНажмите *Помощь*, чтобы снова увидеть данное сообщение."
-					bot.Send(msg)
+					controllers.SetUserState(UserID, "welcome")
+					DelMsg := tgbotapi.NewDeleteMessage(UserID, update.Message.MessageID)
+					bot.Request(DelMsg)
 
 				case "/admin":
 					if admin.Auth(UserID) {
-						// admMode = true
-						controllers.SetUserState(UserID, "admin")
 						var NewChanRoute ChanRoute
 						NewChanRoute.AdminID = UserID
 						NewChanRoute.AdmChan = make(chan tgbotapi.Update)
@@ -166,12 +101,61 @@ func main() {
 
 			UserID := update.CallbackQuery.From.ID
 			UserState := controllers.GetUserState(UserID)
+			CallbackData := update.CallbackQuery.Data
 
 			if UserState == "admin" {
 
 				SendUpdateToAdmin(ChanRoutes, UserID, update)
 
 			} else {
+
+				if update.CallbackQuery.Data == "right" {
+					ctx := context.Background()
+					next_page, _ := strconv.Atoi(models.RedisClient.HGet(ctx, fmt.Sprint(UserID), "page").Val())
+					next_page++
+					if next_page < len(beer_map[UserID]) {
+						delMsg := tgbotapi.NewDeleteMessage(UserID, update.CallbackQuery.Message.MessageID)
+						controllers.DisplayBeer(bot, UserID, &beer_map[UserID][next_page])
+						bot.Send(delMsg)
+						models.RedisClient.HSet(ctx, fmt.Sprint(UserID), "page", next_page)
+					}
+				} else if update.CallbackQuery.Data == "left" {
+					ctx := context.Background()
+					prev_page, _ := strconv.Atoi(models.RedisClient.HGet(ctx, fmt.Sprint(UserID), "page").Val())
+					prev_page--
+					if prev_page >= 0 {
+						delMsg := tgbotapi.NewDeleteMessage(UserID, update.CallbackQuery.Message.MessageID)
+						controllers.DisplayBeer(bot, UserID, &beer_map[UserID][prev_page])
+						bot.Send(delMsg)
+						models.RedisClient.HSet(ctx, fmt.Sprint(UserID), "page", prev_page)
+					}
+				} else if CallbackData == "presnya" || CallbackData == "rizhskaya" || CallbackData == "sokol" || CallbackData == "frunza" {
+					controllers.SetUserLocation(UserID, CallbackData)
+					DelMsg := tgbotapi.NewDeleteMessage(UserID, update.CallbackQuery.Message.MessageID)
+					controllers.DisplayStartMessage(bot, UserID, CallbackData)
+					bot.Request(DelMsg)
+				} else if CallbackData == "list" {
+					ctx := context.Background()
+					var beers []models.Beer
+					beers = controllers.GetBeerList(bot, UserID)
+					beer_map[UserID] = beers
+					models.RedisClient.HSet(ctx, fmt.Sprint(UserID), "page", 0)
+					controllers.DisplayBeer(bot, UserID, &beer_map[UserID][0])
+					DelMsg := tgbotapi.NewDeleteMessage(UserID, update.CallbackQuery.Message.MessageID)
+					bot.Request(DelMsg)
+				} else if CallbackData == "filters" {
+					msg := tgbotapi.NewMessage(UserID, "")
+					msg.Text = "Выберите фильтры"
+					msg.ReplyMarkup = keyboards.FiltersSelectKeyboard
+					bot.Send(msg)
+					DelMsg := tgbotapi.NewDeleteMessage(UserID, update.CallbackQuery.Message.MessageID)
+					bot.Request(DelMsg)
+				} else if CallbackData == "back" {
+					UserLocation := controllers.GetUserLocation(UserID)
+					controllers.DisplayStartMessage(bot, UserID, UserLocation)
+					DelMsg := tgbotapi.NewDeleteMessage(UserID, update.CallbackQuery.Message.MessageID)
+					bot.Request(DelMsg)
+				}
 
 				callback := tgbotapi.NewCallback(update.CallbackQuery.ID, "")
 
@@ -180,16 +164,18 @@ func main() {
 					switch update.CallbackQuery.Data {
 					case "styles":
 						re_msg.Text = "Выберите предпочитаемые стили"
-						re_msg.ReplyMarkup = &styleSelectKeyboard
+						re_msg.ReplyMarkup = &keyboards.StyleSelectKeyboard
 						bot.Send(re_msg)
 					case "breweries":
 						re_msg.Text = "Выберите предпочитаемые пивоварни"
-						re_msg.ReplyMarkup = &brewerySelectKeyboard
+						re_msg.ReplyMarkup = &keyboards.BrewerySelectKeyboard
 						bot.Send(re_msg)
 					case "clear":
-						controllers.RedisClient.HDel(ctx, fmt.Sprint(UserID), "style")
-						controllers.RedisClient.HDel(ctx, fmt.Sprint(UserID), "brewery")
+						controllers.CleanUserFilters(UserID)
 						callback.Text = "Фильтры сброшены"
+					}
+					if _, err := bot.Request(callback); err != nil {
+						panic(err)
 					}
 				}
 
@@ -197,7 +183,7 @@ func main() {
 
 					if update.CallbackQuery.Data == "back" {
 						re_msg := tgbotapi.NewEditMessageText(UserID, update.CallbackQuery.Message.MessageID, "Выберите фильтры")
-						re_msg.ReplyMarkup = &filtersSelectKeyboard
+						re_msg.ReplyMarkup = &keyboards.FiltersSelectKeyboard
 						bot.Send(re_msg)
 					} else {
 						var category string
@@ -208,12 +194,11 @@ func main() {
 							category = "brewery"
 						}
 						controllers.UpdateFilters(category, &update, &callback)
+						if _, err := bot.Request(callback); err != nil {
+							panic(err)
+						}
 					}
 
-				}
-
-				if _, err := bot.Request(callback); err != nil {
-					panic(err)
 				}
 
 			}
