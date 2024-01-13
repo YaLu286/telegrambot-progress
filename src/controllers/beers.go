@@ -5,6 +5,7 @@ import (
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"strings"
+	// "strconv"
 	"telegrambot/progress/models"
 )
 
@@ -14,7 +15,7 @@ var arrowsKeys = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardButtonData("🔽", "right"),
 	),
 	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Назад в меню", "back"),
+		tgbotapi.NewInlineKeyboardButtonData("Назад в меню", "backToMenu"),
 	),
 )
 
@@ -36,7 +37,7 @@ func FindBeer(favorite_breweries []string, favorite_styles []string) []models.Be
 	return beer_list
 }
 
-func GetBeerList(bot *tgbotapi.BotAPI, UserID int64) []models.Beer {
+func GetBeerList(UserID int64) []models.Beer {
 	ctx := context.Background()
 	var favorite_breweries []string
 	var favorite_styles []string
@@ -55,19 +56,36 @@ func GetBeerList(bot *tgbotapi.BotAPI, UserID int64) []models.Beer {
 	return beers
 }
 
-func DisplayBeer(bot *tgbotapi.BotAPI, UserID int64, beer *models.Beer) {
+func DisplayBeer(bot *tgbotapi.BotAPI, UserID int64, beer *models.Beer, callerID int) {
 	beer_description := fmt.Sprintf("%s от %s \nСтиль: %s\nABV: %.2f Rate: %.2f\n%s\n%d₽",
 		beer.Name, beer.Brewery,
 		beer.Style, beer.ABV,
 		beer.Rate, beer.Brief, beer.Price)
-	photo := tgbotapi.NewPhoto(UserID, tgbotapi.FilePath(beer.ImagePath))
-	photo.Caption = beer_description
-	photo.ReplyMarkup = arrowsKeys
 
-	var editMsg tgbotapi.EditMessageMediaConfig
-	editMsg.Media = tgbotapi.FilePath(beer.ImagePath)
-	editMsg.MessageID = MsgID
-	if _, err := bot.Send(photo); err != nil {
+	var beerImage tgbotapi.InputMediaPhoto
+	beerImage.Media = tgbotapi.FilePath(beer.ImagePath)
+	beerImage.Caption = beer_description
+	beerImage.Type = "photo"
+	editMsg := tgbotapi.EditMessageMediaConfig{
+		BaseEdit: tgbotapi.BaseEdit{
+			ChatID:      UserID,
+			MessageID:   callerID,
+			ReplyMarkup: &arrowsKeys,
+		},
+		Media: beerImage,
+	}
+	if _, err := bot.Request(editMsg); err != nil {
 		panic(err)
 	}
 }
+
+// func NextPage(UserID int64, CallerMsgID int, BeerMap map[int64][]models.Beer) (bool, int){
+// 	ctx := context.Background()
+// 	next_page, _ := strconv.Atoi(models.RedisClient.HGet(ctx, fmt.Sprint(UserID), "page").Val())
+// 	next_page++
+// 	if next_page < len(BeerMap[UserID]) {
+// 		DisplayBeer(bot, UserID, &BeerMap[UserID][next_page], CallerMsgID)
+// 		models.RedisClient.HSet(ctx, fmt.Sprint(UserID), "page", next_page)
+// 	}
+// 	return false, next_page
+// }

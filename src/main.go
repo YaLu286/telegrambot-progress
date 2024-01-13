@@ -101,7 +101,9 @@ func main() {
 
 			UserID := update.CallbackQuery.From.ID
 			UserState := controllers.GetUserState(UserID)
+			CallerMsgID := update.CallbackQuery.Message.MessageID
 			CallbackData := update.CallbackQuery.Data
+			callback := tgbotapi.NewCallback(update.CallbackQuery.ID, "")
 
 			if UserState == "admin" {
 
@@ -114,9 +116,7 @@ func main() {
 					next_page, _ := strconv.Atoi(models.RedisClient.HGet(ctx, fmt.Sprint(UserID), "page").Val())
 					next_page++
 					if next_page < len(beer_map[UserID]) {
-						delMsg := tgbotapi.NewDeleteMessage(UserID, update.CallbackQuery.Message.MessageID)
-						controllers.DisplayBeer(bot, UserID, &beer_map[UserID][next_page])
-						bot.Send(delMsg)
+						controllers.DisplayBeer(bot, UserID, &beer_map[UserID][next_page], update.CallbackQuery.Message.MessageID)
 						models.RedisClient.HSet(ctx, fmt.Sprint(UserID), "page", next_page)
 					}
 				} else if update.CallbackQuery.Data == "left" {
@@ -124,50 +124,39 @@ func main() {
 					prev_page, _ := strconv.Atoi(models.RedisClient.HGet(ctx, fmt.Sprint(UserID), "page").Val())
 					prev_page--
 					if prev_page >= 0 {
-						delMsg := tgbotapi.NewDeleteMessage(UserID, update.CallbackQuery.Message.MessageID)
-						controllers.DisplayBeer(bot, UserID, &beer_map[UserID][prev_page])
-						bot.Send(delMsg)
+						controllers.DisplayBeer(bot, UserID, &beer_map[UserID][prev_page], update.CallbackQuery.Message.MessageID)
 						models.RedisClient.HSet(ctx, fmt.Sprint(UserID), "page", prev_page)
 					}
 				} else if CallbackData == "presnya" || CallbackData == "rizhskaya" || CallbackData == "sokol" || CallbackData == "frunza" {
 					controllers.SetUserLocation(UserID, CallbackData)
-					DelMsg := tgbotapi.NewDeleteMessage(UserID, update.CallbackQuery.Message.MessageID)
-					controllers.DisplayStartMessage(bot, UserID, CallbackData)
-					bot.Request(DelMsg)
+					controllers.DisplayStartMessage(bot, UserID, CallbackData, CallerMsgID)
 				} else if CallbackData == "list" {
 					ctx := context.Background()
 					var beers []models.Beer
-					beers = controllers.GetBeerList(bot, UserID)
-					beer_map[UserID] = beers
-					models.RedisClient.HSet(ctx, fmt.Sprint(UserID), "page", 0)
-					controllers.DisplayBeer(bot, UserID, &beer_map[UserID][0])
-					DelMsg := tgbotapi.NewDeleteMessage(UserID, update.CallbackQuery.Message.MessageID)
-					bot.Request(DelMsg)
+					beers = controllers.GetBeerList(UserID)
+					if len(beers) > 0 {
+						beer_map[UserID] = beers
+						models.RedisClient.HSet(ctx, fmt.Sprint(UserID), "page", 0)
+						controllers.DisplayBeer(bot, UserID, &beer_map[UserID][0], CallerMsgID)
+					} else {
+						controllers.DisplayNotFoundMessage(bot, UserID, CallerMsgID)
+					}
 				} else if CallbackData == "filters" {
-					msg := tgbotapi.NewMessage(UserID, "")
-					msg.Text = "Выберите фильтры"
-					msg.ReplyMarkup = keyboards.FiltersSelectKeyboard
+					msg := tgbotapi.NewEditMessageCaption(UserID, CallerMsgID, "Выберите фильтры")
+					msg.ReplyMarkup = &keyboards.FiltersSelectKeyboard
 					bot.Send(msg)
-					DelMsg := tgbotapi.NewDeleteMessage(UserID, update.CallbackQuery.Message.MessageID)
-					bot.Request(DelMsg)
-				} else if CallbackData == "back" {
+				} else if CallbackData == "backToMenu" {
 					UserLocation := controllers.GetUserLocation(UserID)
-					controllers.DisplayStartMessage(bot, UserID, UserLocation)
-					DelMsg := tgbotapi.NewDeleteMessage(UserID, update.CallbackQuery.Message.MessageID)
-					bot.Request(DelMsg)
-				}
-
-				callback := tgbotapi.NewCallback(update.CallbackQuery.ID, "")
-
-				if update.CallbackQuery.Message.Text == "Выберите фильтры" {
-					re_msg := tgbotapi.NewEditMessageText(UserID, update.CallbackQuery.Message.MessageID, update.CallbackQuery.Message.Text)
+					controllers.DisplayStartMessage(bot, UserID, UserLocation, CallerMsgID)
+				} else if update.CallbackQuery.Message.Caption == "Выберите фильтры" {
+					re_msg := tgbotapi.NewEditMessageCaption(UserID, update.CallbackQuery.Message.MessageID, update.CallbackQuery.Message.Text)
 					switch update.CallbackQuery.Data {
 					case "styles":
-						re_msg.Text = "Выберите предпочитаемые стили"
+						re_msg.Caption = "Выберите предпочитаемые стили"
 						re_msg.ReplyMarkup = &keyboards.StyleSelectKeyboard
 						bot.Send(re_msg)
 					case "breweries":
-						re_msg.Text = "Выберите предпочитаемые пивоварни"
+						re_msg.Caption = "Выберите предпочитаемые пивоварни"
 						re_msg.ReplyMarkup = &keyboards.BrewerySelectKeyboard
 						bot.Send(re_msg)
 					case "clear":
@@ -177,12 +166,10 @@ func main() {
 					if _, err := bot.Request(callback); err != nil {
 						panic(err)
 					}
-				}
-
-				if update.CallbackQuery.Message.Text == "Выберите предпочитаемые стили" || update.CallbackQuery.Message.Text == "Выберите предпочитаемые пивоварни" {
+				} else if update.CallbackQuery.Message.Caption == "Выберите предпочитаемые стили" || update.CallbackQuery.Message.Caption == "Выберите предпочитаемые пивоварни" {
 
 					if update.CallbackQuery.Data == "back" {
-						re_msg := tgbotapi.NewEditMessageText(UserID, update.CallbackQuery.Message.MessageID, "Выберите фильтры")
+						re_msg := tgbotapi.NewEditMessageCaption(UserID, update.CallbackQuery.Message.MessageID, "Выберите фильтры")
 						re_msg.ReplyMarkup = &keyboards.FiltersSelectKeyboard
 						bot.Send(re_msg)
 					} else {
