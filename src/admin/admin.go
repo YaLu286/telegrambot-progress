@@ -64,15 +64,15 @@ var actionChoiseKeyboard = tgbotapi.NewInlineKeyboardMarkup(
 	),
 )
 
-func Auth(UserID int64) bool {
-	var user models.User
-	models.DB.First(&user, "id = ?", UserID)
-	if user.IsAdmin {
-		controllers.SetUserState(UserID, "admin")
-		AdmMode := user.AdminMode
-		controllers.SetAdminMode(UserID, AdmMode)
+func Auth(session *models.UserSession) bool {
+	var adm models.Admin
+	res := models.DB.First(&adm, "id = ?", session.UserID)
+	if res != nil {
+		session.SetUserState("admin")
+		session.SetAdminMode(adm.AdminMode)
+		return true
 	}
-	return user.IsAdmin
+	return false
 }
 
 func SavePhoto(fullURLFile string, fileName string) {
@@ -250,14 +250,14 @@ func ChangeBeerPanel(bot *tgbotapi.BotAPI, admChan chan tgbotapi.Update, changeI
 	}
 }
 
-func DisplayBeerListForAdmin(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+func DisplayBeerListForAdmin(bot *tgbotapi.BotAPI, update tgbotapi.Update, AdminLocation string) {
 	var bottles []models.Beer
 
 	bottles = controllers.FindAllBeer()
 	for _, bottle := range bottles {
 		var availability string = "❌"
-		var AdmLocation string = controllers.GetAdminMode(update.Message.From.ID)
-		switch AdmLocation {
+		// var AdmLocation string = controllers.GetAdminMode(update.Message.From.ID)
+		switch AdminLocation {
 		case "presnya":
 			if bottle.Presnya {
 				availability = "✅"
@@ -296,15 +296,17 @@ func AdmPanel(bot *tgbotapi.BotAPI, admChan chan tgbotapi.Update) {
 		update := <-admChan
 		if update.Message != nil {
 			UserID := update.Message.From.ID
+			session := &models.UserSession{UserID: UserID}
+			session.LoadInfo()
 			switch update.Message.Text {
 			case "Добавить позицию":
 				msg := tgbotapi.NewMessage(UserID, "Добавление новой позиции")
 				bot.Send(msg)
 				CreateBeerPanel(bot, admChan)
 			case "Список позиций":
-				DisplayBeerListForAdmin(bot, update)
+				DisplayBeerListForAdmin(bot, update, session.AdmMode)
 			case "Выйти":
-				controllers.SetUserState(UserID, "start")
+				session.SetUserState("start")
 				defer close(admChan)
 				return
 			default:
@@ -313,6 +315,9 @@ func AdmPanel(bot *tgbotapi.BotAPI, admChan chan tgbotapi.Update) {
 				bot.Send(msg)
 			}
 		} else if update.CallbackQuery != nil {
+			UserID := update.CallbackQuery.From.ID
+			session := &models.UserSession{UserID: UserID}
+			session.LoadInfo()
 			switch update.CallbackQuery.Data {
 			case "change":
 				text := update.CallbackQuery.Message.Caption
@@ -328,7 +333,7 @@ func AdmPanel(bot *tgbotapi.BotAPI, admChan chan tgbotapi.Update) {
 				var beer models.Beer
 				models.DB.Find(&beer, beerID)
 				var availability string = "❌"
-				switch controllers.GetAdminMode(update.CallbackQuery.From.ID) {
+				switch session.AdmMode {
 				case "presnya":
 					beer.Presnya = !beer.Presnya
 					if beer.Presnya {

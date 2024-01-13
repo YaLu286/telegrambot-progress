@@ -90,3 +90,13 @@ var BackKey = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardButtonData("Назад в меню", "backToMenu"),
 	),
 )
+
+var ArrowsKeys = tgbotapi.NewInlineKeyboardMarkup(
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("🔼", "left"),
+		tgbotapi.NewInlineKeyboardButtonData("🔽", "right"),
+	),
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Назад в меню", "backToMenu"),
+	),
+)

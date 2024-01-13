@@ -23,7 +23,6 @@ func DisplayStartMessage(bot *tgbotapi.BotAPI, UserID int64, UserLocationID stri
 		},
 		Media: startImage,
 	}
-
 	bot.Send(editMsg)
 }
 

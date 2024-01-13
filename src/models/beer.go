@@ -5,7 +5,7 @@ import (
 )
 
 type Beer struct {
-	ID        int64   `json:"id"`
+	ID        int64   `gorm:"primaryKey" json:"id"`
 	Name      string  `json:"name"`
 	Brewery   string  `json:"brewery"`
 	Style     string  `json:"style"`

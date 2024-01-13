@@ -1,30 +1,22 @@
 package models
 
 import (
-	"github.com/redis/go-redis/v9"
+	pq "github.com/lib/pq"
 )
 
-var RedisClient *redis.Client
-
-func ConnectRedis() {
-	RedisClient = redis.NewClient(&redis.Options{
-		Addr:     "10.5.0.5:6379",
-		Password: "123", // no password set
-		DB:       0,     // use default DB
-	})
-
-	if RedisClient == nil {
-		panic("Error occurred while conncting Redis")
-	}
+type UserSession struct {
+	UserID      int64 `gorm:"primaryKey"`
+	State       string
+	AdmMode     string
+	Location    string
+	Breweries   pq.StringArray `gorm:"type:text"`
+	Styles      pq.StringArray `gorm:"type:text"`
+	CurrentPage int
 }
 
-type UserSession struct {
-	UserID    int64
-	State     string
-	AdmMode string
-	Location  string
-	Breweries []string
-	Styles    []string
+func (session *UserSession) NewSession(ID int64) {
+	session.UserID = ID
+	DB.Create(session)
 }
 
 func (session *UserSession) LoadInfo() {
@@ -32,19 +24,62 @@ func (session *UserSession) LoadInfo() {
 }
 
 func (session *UserSession) SetUserState(State string) {
-	DB.Find(session)
 	session.State = State
+	session.Breweries.Value()
 	DB.Save(session)
 }
 
 func (session *UserSession) SetAdminMode(Mode string) {
-	DB.Find(session)
 	session.AdmMode = Mode
 	DB.Save(session)
 }
 
-func (session *UserSession) CleanUserFilters(UserID int64) {
+func (session *UserSession) SetLocation(Location string) {
+	session.Location = Location
+	DB.Save(session)
+}
+
+func (session *UserSession) CleanUserFilters() {
 	session.Breweries = nil
 	session.Styles = nil
+	DB.Save(session)
+}
+
+func (session *UserSession) AppendBrewery(newBrewery string) {
+	if session.Breweries == nil {
+		session.Breweries = make([]string, 0, 10)
+	}
+	session.Breweries = append(session.Breweries, newBrewery)
+	DB.Save(session)
+}
+
+func (session *UserSession) RemoveBrewery(delBrewery string) {
+	for i, b := range session.Breweries {
+		if b == delBrewery {
+			session.Breweries = append(session.Breweries[:i], session.Breweries[i+1:]...)
+		}
+	}
+	DB.Save(session)
+}
+
+func (session *UserSession) AppendStyle(newStyle string) {
+	if session.Styles == nil {
+		session.Styles = make([]string, 0, 10)
+	}
+	session.Styles = append(session.Styles, newStyle)
+	DB.Save(&session)
+}
+
+func (session *UserSession) RemoveStyle(delStyle string) {
+	for i, s := range session.Breweries {
+		if s == delStyle {
+			session.Breweries = append(session.Styles[:i], session.Styles[i+1:]...)
+		}
+	}
+	DB.Save(&session)
+}
+
+func (session *UserSession) SetCurrentPage(page int) {
+	session.CurrentPage = page
 	DB.Save(session)
 }

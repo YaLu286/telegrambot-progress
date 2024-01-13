@@ -1,16 +1,12 @@
 package main
 
 import (
-	"context"
-	"fmt"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"os"
-	"strconv"
 	"telegrambot/progress/admin"
 	"telegrambot/progress/controllers"
 	"telegrambot/progress/keyboards"
 	"telegrambot/progress/models"
-
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 type ChanRoute struct {
@@ -42,8 +38,6 @@ func main() {
 
 	models.ConnectDatabase()
 
-	models.ConnectRedis()
-
 	updateConfig := tgbotapi.NewUpdate(0)
 
 	updateConfig.Timeout = 30
@@ -61,9 +55,10 @@ func main() {
 		if update.Message != nil {
 
 			UserID := update.Message.From.ID
-			UserState := controllers.GetUserState(UserID)
+			session := &models.UserSession{UserID: UserID}
+			session.LoadInfo()
 
-			if UserState == "admin" {
+			if session.State == "admin" {
 
 				SendUpdateToAdmin(ChanRoutes, UserID, update)
 
@@ -82,12 +77,15 @@ func main() {
 					photo.Caption = "Добро пожаловать в *Прогресс*!\nС помощью этого бота вы можете ознакомиться с актуальным ассортиментом бутылочного пива/сидра и подобрать его по своим собственным предпочтениям.\nЧтобы продолжить, пожалуйста, выберите локацию."
 					photo.ReplyMarkup = keyboards.LocationSelectKeys
 					bot.Send(photo)
-					controllers.SetUserState(UserID, "welcome")
+					if models.DB.First(session, "user_id = ?", UserID).RowsAffected == 0 {
+						session.NewSession(UserID)
+					}
+					session.SetUserState("welcome")
 					DelMsg := tgbotapi.NewDeleteMessage(UserID, update.Message.MessageID)
 					bot.Request(DelMsg)
 
 				case "/admin":
-					if admin.Auth(UserID) {
+					if admin.Auth(session) {
 						var NewChanRoute ChanRoute
 						NewChanRoute.AdminID = UserID
 						NewChanRoute.AdmChan = make(chan tgbotapi.Update)
@@ -100,43 +98,41 @@ func main() {
 		} else if update.CallbackQuery != nil {
 
 			UserID := update.CallbackQuery.From.ID
-			UserState := controllers.GetUserState(UserID)
+			session := &models.UserSession{UserID: UserID}
+			session.LoadInfo()
 			CallerMsgID := update.CallbackQuery.Message.MessageID
 			CallbackData := update.CallbackQuery.Data
 			callback := tgbotapi.NewCallback(update.CallbackQuery.ID, "")
 
-			if UserState == "admin" {
+			if session.State == "admin" {
 
 				SendUpdateToAdmin(ChanRoutes, UserID, update)
 
 			} else {
 
 				if update.CallbackQuery.Data == "right" {
-					ctx := context.Background()
-					next_page, _ := strconv.Atoi(models.RedisClient.HGet(ctx, fmt.Sprint(UserID), "page").Val())
+					next_page := session.CurrentPage
 					next_page++
 					if next_page < len(beer_map[UserID]) {
 						controllers.DisplayBeer(bot, UserID, &beer_map[UserID][next_page], update.CallbackQuery.Message.MessageID)
-						models.RedisClient.HSet(ctx, fmt.Sprint(UserID), "page", next_page)
+						session.SetCurrentPage(next_page)
 					}
 				} else if update.CallbackQuery.Data == "left" {
-					ctx := context.Background()
-					prev_page, _ := strconv.Atoi(models.RedisClient.HGet(ctx, fmt.Sprint(UserID), "page").Val())
+					prev_page := session.CurrentPage
 					prev_page--
 					if prev_page >= 0 {
 						controllers.DisplayBeer(bot, UserID, &beer_map[UserID][prev_page], update.CallbackQuery.Message.MessageID)
-						models.RedisClient.HSet(ctx, fmt.Sprint(UserID), "page", prev_page)
+						session.SetCurrentPage(prev_page)
 					}
 				} else if CallbackData == "presnya" || CallbackData == "rizhskaya" || CallbackData == "sokol" || CallbackData == "frunza" {
-					controllers.SetUserLocation(UserID, CallbackData)
+					session.SetLocation(CallbackData)
 					controllers.DisplayStartMessage(bot, UserID, CallbackData, CallerMsgID)
 				} else if CallbackData == "list" {
-					ctx := context.Background()
 					var beers []models.Beer
 					beers = controllers.GetBeerList(UserID)
 					if len(beers) > 0 {
 						beer_map[UserID] = beers
-						models.RedisClient.HSet(ctx, fmt.Sprint(UserID), "page", 0)
+						session.SetCurrentPage(0)
 						controllers.DisplayBeer(bot, UserID, &beer_map[UserID][0], CallerMsgID)
 					} else {
 						controllers.DisplayNotFoundMessage(bot, UserID, CallerMsgID)
@@ -146,8 +142,7 @@ func main() {
 					msg.ReplyMarkup = &keyboards.FiltersSelectKeyboard
 					bot.Send(msg)
 				} else if CallbackData == "backToMenu" {
-					UserLocation := controllers.GetUserLocation(UserID)
-					controllers.DisplayStartMessage(bot, UserID, UserLocation, CallerMsgID)
+					controllers.DisplayStartMessage(bot, UserID, session.Location, CallerMsgID)
 				} else if update.CallbackQuery.Message.Caption == "Выберите фильтры" {
 					re_msg := tgbotapi.NewEditMessageCaption(UserID, update.CallbackQuery.Message.MessageID, update.CallbackQuery.Message.Text)
 					switch update.CallbackQuery.Data {
@@ -160,7 +155,7 @@ func main() {
 						re_msg.ReplyMarkup = &keyboards.BrewerySelectKeyboard
 						bot.Send(re_msg)
 					case "clear":
-						controllers.CleanUserFilters(UserID)
+						session.CleanUserFilters()
 						callback.Text = "Фильтры сброшены"
 					}
 					if _, err := bot.Request(callback); err != nil {
@@ -173,14 +168,12 @@ func main() {
 						re_msg.ReplyMarkup = &keyboards.FiltersSelectKeyboard
 						bot.Send(re_msg)
 					} else {
-						var category string
-						switch update.CallbackQuery.Message.Text {
+						switch update.CallbackQuery.Message.Caption {
 						case "Выберите предпочитаемые стили":
-							category = "style"
+							controllers.UpdateUserStyles(UserID, CallbackData, &callback)
 						case "Выберите предпочитаемые пивоварни":
-							category = "brewery"
+							controllers.UpdateUserBreweries(UserID, CallbackData, &callback)
 						}
-						controllers.UpdateFilters(category, &update, &callback)
 						if _, err := bot.Request(callback); err != nil {
 							panic(err)
 						}

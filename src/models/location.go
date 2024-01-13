@@ -1,11 +1,11 @@
 package models
 
 type Location struct {
-	ID string
-	WelcomeText string
+	ID           string `gorm:"primaryKey"`
+	WelcomeText  string
 	PhoneNumbers string
-	Email string
-	ImagePath string
+	Email        string
+	ImagePath    string
 }
 
 func (l *Location) LoadInfo() {

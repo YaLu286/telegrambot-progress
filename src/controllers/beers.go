@@ -1,22 +1,10 @@
 package controllers
 
 import (
-	"context"
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"strings"
-	// "strconv"
+	"telegrambot/progress/keyboards"
 	"telegrambot/progress/models"
-)
-
-var arrowsKeys = tgbotapi.NewInlineKeyboardMarkup(
-	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("🔼", "left"),
-		tgbotapi.NewInlineKeyboardButtonData("🔽", "right"),
-	),
-	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Назад в меню", "backToMenu"),
-	),
 )
 
 func FindAllBeer() []models.Beer {
@@ -38,20 +26,16 @@ func FindBeer(favorite_breweries []string, favorite_styles []string) []models.Be
 }
 
 func GetBeerList(UserID int64) []models.Beer {
-	ctx := context.Background()
-	var favorite_breweries []string
-	var favorite_styles []string
-	favorite_breweries = strings.Split(models.RedisClient.HGetAll(ctx, fmt.Sprint(UserID)).Val()["brewery"], ",")
-	favorite_styles = strings.Split(models.RedisClient.HGetAll(ctx, fmt.Sprint(UserID)).Val()["style"], ",")
-	favorite_breweries = RemoveStrFromArray(favorite_breweries, "")
-	favorite_styles = RemoveStrFromArray(favorite_styles, "")
+
+	session := &models.UserSession{UserID: UserID}
+	session.LoadInfo()
 
 	var beers []models.Beer
 
-	if len(favorite_breweries) == 0 && len(favorite_styles) == 0 {
+	if len(session.Breweries) == 0 && len(session.Styles) == 0 {
 		beers = FindAllBeer()
 	} else {
-		beers = FindBeer(favorite_breweries, favorite_styles)
+		beers = FindBeer(session.Breweries, session.Styles)
 	}
 	return beers
 }
@@ -70,7 +54,7 @@ func DisplayBeer(bot *tgbotapi.BotAPI, UserID int64, beer *models.Beer, callerID
 		BaseEdit: tgbotapi.BaseEdit{
 			ChatID:      UserID,
 			MessageID:   callerID,
-			ReplyMarkup: &arrowsKeys,
+			ReplyMarkup: &keyboards.ArrowsKeys,
 		},
 		Media: beerImage,
 	}
