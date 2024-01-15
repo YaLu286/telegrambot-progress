@@ -10,7 +10,7 @@ func DisplayStartMessage(bot *tgbotapi.BotAPI, UserID int64, UserLocationID stri
 	var UserLocation models.Location
 	UserLocation.ID = UserLocationID
 	UserLocation.LoadInfo()
-	startCaption := UserLocation.WelcomeText + "С помощью этого бота вы можете ознакомиться с актуальным ассортиментом бутылочного пива и подобрать его по своим собственным предпочтениям\n📞: " + UserLocation.PhoneNumbers + "\n📩: " + UserLocation.Email
+	startCaption := UserLocation.WelcomeText + "\nС помощью этого бота вы можете ознакомиться с актуальным ассортиментом бутылочного пива и подобрать его по своим собственным предпочтениям\n📞: " + UserLocation.PhoneNumbers + "\n📩: " + UserLocation.Email
 	var startImage tgbotapi.InputMediaPhoto
 	startImage.Media = tgbotapi.FilePath(UserLocation.ImagePath)
 	startImage.Caption = startCaption

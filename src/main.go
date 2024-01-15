@@ -48,8 +48,6 @@ func main() {
 
 	var beer_map map[int64][]models.Beer = make(map[int64][]models.Beer)
 
-	// var admChan chan tgbotapi.Update = make(chan tgbotapi.Update)
-
 	for update := range updates {
 
 		if update.Message != nil {
@@ -111,25 +109,19 @@ func main() {
 			} else {
 
 				if update.CallbackQuery.Data == "right" {
-					next_page := session.CurrentPage
-					next_page++
-					if next_page < len(beer_map[UserID]) {
-						controllers.DisplayBeer(bot, UserID, &beer_map[UserID][next_page], update.CallbackQuery.Message.MessageID)
-						session.SetCurrentPage(next_page)
+					if res, next_page := controllers.NextPage(session, len(beer_map[UserID])); res == true {
+						controllers.DisplayBeer(bot, UserID, &beer_map[UserID][next_page], CallerMsgID)
 					}
 				} else if update.CallbackQuery.Data == "left" {
-					prev_page := session.CurrentPage
-					prev_page--
-					if prev_page >= 0 {
-						controllers.DisplayBeer(bot, UserID, &beer_map[UserID][prev_page], update.CallbackQuery.Message.MessageID)
-						session.SetCurrentPage(prev_page)
+					if res, prev_page := controllers.PreviousPage(session); res == true {
+						controllers.DisplayBeer(bot, UserID, &beer_map[UserID][prev_page], CallerMsgID)
 					}
 				} else if CallbackData == "presnya" || CallbackData == "rizhskaya" || CallbackData == "sokol" || CallbackData == "frunza" {
 					session.SetLocation(CallbackData)
 					controllers.DisplayStartMessage(bot, UserID, CallbackData, CallerMsgID)
 				} else if CallbackData == "list" {
 					var beers []models.Beer
-					beers = controllers.GetBeerList(UserID)
+					beers = controllers.GetBeerList(session)
 					if len(beers) > 0 {
 						beer_map[UserID] = beers
 						session.SetCurrentPage(0)

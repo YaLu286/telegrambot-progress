@@ -67,7 +67,7 @@ func (session *UserSession) AppendStyle(newStyle string) {
 		session.Styles = make([]string, 0, 10)
 	}
 	session.Styles = append(session.Styles, newStyle)
-	DB.Save(&session)
+	DB.Save(session)
 }
 
 func (session *UserSession) RemoveStyle(delStyle string) {
@@ -76,7 +76,7 @@ func (session *UserSession) RemoveStyle(delStyle string) {
 			session.Breweries = append(session.Styles[:i], session.Styles[i+1:]...)
 		}
 	}
-	DB.Save(&session)
+	DB.Save(session)
 }
 
 func (session *UserSession) SetCurrentPage(page int) {

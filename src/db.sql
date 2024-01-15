@@ -1,5 +1,12 @@
--- DELETE FROM beers;
+-- DELETE FROM beers
+-- where id = 13;
 -- DELETE FROM users;
+
+-- select unnest(string_to_array(availability, '"')) from beers
+-- where id = 13;
+
+-- SELECT * FROM "beers" WHERE 'sokol' IN (select unnest(string_to_array(availability, '"')))
+-- where 'sokol' IN (unnest(select availability from beers where id = 13));
 
 -- insert into beers values (1, 'Red River', 'Stamm Brewing', 'APA', 'Ароматный светлый эль', 5.5, 3.73, '/images/redriver.jpg', 280);
 -- insert into beers values (2, 'Your Young Lordship', 'Stamm Brewing', 'Lager', 'Светлый лагер с лёгкой горечью', 5.6, 3.86, '/images/item_5357.jpg', 280);
@@ -14,9 +21,17 @@
 -- insert into beers values (11, 'Empress Maria', 'Zavod', 'Gose', 'Имперское томатное гозе. Больше алкоголя, больше пряностей, больше Вустерского соуса, двойная доза остроты, а ещё новые составляющие - соевый соус, чеснок и немного копчености - не оставят вас в числе равнодушныхю', 6.9, 3.88, '/images/maria.png', 430);
 -- insert into beers values (12, 'Ticket to Köln', 'Zavod', 'Lager', 'Легкое тело, баланс горечи и солодовой составляющей, тонкий фруктовый и цветочный аромат; наш кёльш - ваш билетик в Кёльн!', 4.3, 3.71, '/images/ticket.png', 430);
 
--- insert into  users values (1032058526, true, 'sokol');
 
--- select * from users;
+
+
+-- insert into admins values (1032058526, 'sokol');
+
+-- update admins
+-- set admin_mode = 'sokol'
+-- where id = 1032058526
+-- select * from admins;
+
+-- select * from user_sessions;
 
 
 -- delete from locations;
@@ -26,8 +41,13 @@
 -- insert into locations values('rizhskaya', 'Добро пожаловать в Прогресс на Рижской!', '+7(925)635-70-19', 'progress.rizhskaya@gmail.com', '/images/rizhskaya.jpg');
 -- insert into locations values('frunza', 'Добро пожаловать в Прогресс на Фрунзенской!', '+7(903)167-22-53', 'progress.frunza@gmail.com', '/images/frunza.jpg');
 
--- select * from locations;
+-- select * from beers;
 
-select * from user_sessions;
+-- select * from user_sessions;
 
 -- DROP table user_sessions;
+
+-- update user_sessions
+-- set state = 'welcome' where user_id = 1032058526
+
+
