@@ -32,9 +32,10 @@ var CommandKeyboard = tgbotapi.NewReplyKeyboard(
 var CommandInlineKeyboard = tgbotapi.NewInlineKeyboardMarkup(
 	tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("Список", "list"),
+		tgbotapi.NewInlineKeyboardButtonData("Фильтры", "filters"),
 	),
 	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Фильтры", "filters"),
+		tgbotapi.NewInlineKeyboardButtonData("К выбору локации", "select_location"),
 	),
 	tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("Помощь", "help"),
@@ -63,7 +64,7 @@ var StyleSelectKeyboard = tgbotapi.NewInlineKeyboardMarkup(
 	tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("NE Pale Ale", "NE Pale Ale"),
 		tgbotapi.NewInlineKeyboardButtonData("Gose", "Gose"),
-		tgbotapi.NewInlineKeyboardButtonData("Sour - Fruited", "Sour - Fruited"),
+		tgbotapi.NewInlineKeyboardButtonData("IPA", "IPA"),
 	),
 	tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("Назад", "back"),
@@ -98,5 +99,50 @@ var ArrowsKeys = tgbotapi.NewInlineKeyboardMarkup(
 	),
 	tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("Назад в меню", "backToMenu"),
+	),
+)
+
+var AdminCommandKeyboard = tgbotapi.NewReplyKeyboard(
+	tgbotapi.NewKeyboardButtonRow(
+		tgbotapi.NewKeyboardButton("Добавить позицию"),
+	),
+	tgbotapi.NewKeyboardButtonRow(
+		tgbotapi.NewKeyboardButton("Список позиций"),
+	),
+	tgbotapi.NewKeyboardButtonRow(
+		tgbotapi.NewKeyboardButton("Выйти"),
+	),
+)
+
+var AdminCreateKeyboard = tgbotapi.NewReplyKeyboard(
+	tgbotapi.NewKeyboardButtonRow(
+		tgbotapi.NewKeyboardButton("Назад"),
+	),
+)
+
+var AdminChangeKeyboard = tgbotapi.NewReplyKeyboard(
+	tgbotapi.NewKeyboardButtonRow(
+		tgbotapi.NewKeyboardButton("Название"),
+		tgbotapi.NewKeyboardButton("Пивоварня"),
+		tgbotapi.NewKeyboardButton("Стиль"),
+	),
+	tgbotapi.NewKeyboardButtonRow(
+		tgbotapi.NewKeyboardButton("Краткое описание"),
+	),
+	tgbotapi.NewKeyboardButtonRow(
+		tgbotapi.NewKeyboardButton("ABV"),
+		tgbotapi.NewKeyboardButton("Рейтинг"),
+		tgbotapi.NewKeyboardButton("Цена"),
+	),
+	tgbotapi.NewKeyboardButtonRow(
+		tgbotapi.NewKeyboardButton("Сохранить изменения"),
+	),
+)
+
+var ActionChoiseKeyboard = tgbotapi.NewInlineKeyboardMarkup(
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("❌", "delete"),
+		tgbotapi.NewInlineKeyboardButtonData("✅|🚫", "available_switch"),
+		tgbotapi.NewInlineKeyboardButtonData("✏️", "change"),
 	),
 )

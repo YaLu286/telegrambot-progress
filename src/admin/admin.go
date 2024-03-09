@@ -8,54 +8,10 @@ import (
 	"slices"
 	"strconv"
 	"telegrambot/progress/controllers"
+	"telegrambot/progress/keyboards"
 	"telegrambot/progress/models"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-)
-
-var adminCommandKeyboard = tgbotapi.NewReplyKeyboard(
-	tgbotapi.NewKeyboardButtonRow(
-		tgbotapi.NewKeyboardButton("Добавить позицию"),
-	),
-	tgbotapi.NewKeyboardButtonRow(
-		tgbotapi.NewKeyboardButton("Список позиций"),
-	),
-	tgbotapi.NewKeyboardButtonRow(
-		tgbotapi.NewKeyboardButton("Выйти"),
-	),
-)
-
-var adminCreateKeyboard = tgbotapi.NewReplyKeyboard(
-	tgbotapi.NewKeyboardButtonRow(
-		tgbotapi.NewKeyboardButton("Назад"),
-	),
-)
-
-var adminChangeKeyboard = tgbotapi.NewReplyKeyboard(
-	tgbotapi.NewKeyboardButtonRow(
-		tgbotapi.NewKeyboardButton("Название"),
-		tgbotapi.NewKeyboardButton("Пивоварня"),
-		tgbotapi.NewKeyboardButton("Стиль"),
-	),
-	tgbotapi.NewKeyboardButtonRow(
-		tgbotapi.NewKeyboardButton("Краткое описание"),
-	),
-	tgbotapi.NewKeyboardButtonRow(
-		tgbotapi.NewKeyboardButton("ABV"),
-		tgbotapi.NewKeyboardButton("Рейтинг"),
-		tgbotapi.NewKeyboardButton("Цена"),
-	),
-	tgbotapi.NewKeyboardButtonRow(
-		tgbotapi.NewKeyboardButton("Сохранить изменения"),
-	),
-)
-
-var actionChoiseKeyboard = tgbotapi.NewInlineKeyboardMarkup(
-	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("❌", "delete"),
-		tgbotapi.NewInlineKeyboardButtonData("✅|🚫", "available_switch"),
-		tgbotapi.NewInlineKeyboardButtonData("✏️", "change"),
-	),
 )
 
 func Auth(session *models.UserSession) bool {
@@ -145,7 +101,7 @@ func ChangeBeerPanel(bot *tgbotapi.BotAPI, admChan chan tgbotapi.Update, changeI
 	models.DB.Find(&Beer, changeID)
 
 	msg := tgbotapi.NewMessage(AdminID, "Выберите поле, которое хотите изменить")
-	msg.ReplyMarkup = adminChangeKeyboard
+	msg.ReplyMarkup = keyboards.AdminChangeKeyboard
 	bot.Send(msg)
 
 	for {
@@ -236,7 +192,7 @@ func ChangeBeerPanel(bot *tgbotapi.BotAPI, admChan chan tgbotapi.Update, changeI
 			case "Сохранить изменения":
 				models.DB.Save(&Beer)
 				msg.Text = "Позиция сохранена"
-				msg.ReplyMarkup = adminCommandKeyboard
+				msg.ReplyMarkup = keyboards.AdminCommandKeyboard
 				bot.Send(msg)
 				return
 			}
@@ -263,7 +219,7 @@ func DisplayBeerListForAdmin(bot *tgbotapi.BotAPI, update tgbotapi.Update, Admin
 			availability)
 		photo := tgbotapi.NewPhoto(update.Message.From.ID, tgbotapi.FilePath(bottle.ImagePath))
 		photo.Caption = bottle_description
-		photo.ReplyMarkup = actionChoiseKeyboard
+		photo.ReplyMarkup = keyboards.ActionChoiseKeyboard
 		if _, err := bot.Send(photo); err != nil {
 			panic(err)
 		}
@@ -293,7 +249,7 @@ func AdmPanel(bot *tgbotapi.BotAPI, admChan chan tgbotapi.Update) {
 				return
 			default:
 				msg := tgbotapi.NewMessage(UserID, "Режим администрирования")
-				msg.ReplyMarkup = adminCommandKeyboard
+				msg.ReplyMarkup = keyboards.AdminCommandKeyboard
 				bot.Send(msg)
 			}
 		} else if update.CallbackQuery != nil {
@@ -328,7 +284,7 @@ func AdmPanel(bot *tgbotapi.BotAPI, admChan chan tgbotapi.Update) {
 					beer.ABV, beer.Rate,
 					beer.Brief, beer.Price,
 					availability)
-				re_msg.ReplyMarkup = &actionChoiseKeyboard
+				re_msg.ReplyMarkup = &keyboards.ActionChoiseKeyboard
 				bot.Send(re_msg)
 
 			case "delete":

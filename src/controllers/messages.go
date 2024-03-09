@@ -6,6 +6,22 @@ import (
 	"telegrambot/progress/models"
 )
 
+func DisplayLocationSelector(bot *tgbotapi.BotAPI, UserID int64, CallerID int) {
+	var LocationSelectMsg tgbotapi.InputMediaPhoto
+	LocationSelectMsg.Media = tgbotapi.FilePath("/images/progress.jpg")
+	LocationSelectMsg.Caption = "Добро пожаловать в *Прогресс*!\nС помощью этого бота вы можете ознакомиться с актуальным ассортиментом бутылочного пива/сидра и подобрать его по своим собственным предпочтениям.\nЧтобы продолжить, пожалуйста, выберите локацию."
+	LocationSelectMsg.Type = "photo"
+	editMsg := tgbotapi.EditMessageMediaConfig{
+		BaseEdit: tgbotapi.BaseEdit{
+			ChatID:      UserID,
+			MessageID:   CallerID,
+			ReplyMarkup: &keyboards.LocationSelectKeys,
+		},
+		Media: LocationSelectMsg,
+	}
+	bot.Send(editMsg)
+}
+
 func DisplayStartMessage(bot *tgbotapi.BotAPI, UserID int64, UserLocationID string, CallerID int) {
 	var UserLocation models.Location
 	UserLocation.ID = UserLocationID
