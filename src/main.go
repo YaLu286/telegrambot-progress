@@ -105,11 +105,11 @@ func UpdateCallbackHandler(update tgbotapi.Update, bot *tgbotapi.BotAPI, ChanRou
 
 		switch CallbackData {
 		case "right":
-			if res, next_page := controllers.NextPage(session, len(beerMap[UserID])); res == true {
+			if res, next_page := controllers.NextPage(session, len(beerMap[UserID])); res {
 				controllers.DisplayBeer(bot, UserID, &beerMap[UserID][next_page], CallerMsgID)
 			}
 		case "left":
-			if res, prev_page := controllers.PreviousPage(session); res == true {
+			if res, prev_page := controllers.PreviousPage(session); res {
 				controllers.DisplayBeer(bot, UserID, &beerMap[UserID][prev_page], CallerMsgID)
 			}
 		case "presnya", "rizhskaya", "sokol", "frunza":
