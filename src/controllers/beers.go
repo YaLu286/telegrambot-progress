@@ -1,9 +1,9 @@
 package controllers
 
 import (
-	"fmt"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"telegrambot/progress/keyboards"
+	// "fmt"
+	// tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	// "telegrambot/progress/keyboards"
 	"telegrambot/progress/models"
 )
 
@@ -43,47 +43,4 @@ func GetBeerList(session *models.UserSession) []models.Beer {
 		beers = FindBeer(session.Location, session.Breweries, session.Styles)
 	}
 	return beers
-}
-
-func DisplayBeer(bot *tgbotapi.BotAPI, UserID int64, beer *models.Beer, callerID int) {
-	beer_description := fmt.Sprintf("%s от %s \nСтиль: %s\nABV: %.2f Rate: %.2f\n%s\n%d₽",
-		beer.Name, beer.Brewery,
-		beer.Style, beer.ABV,
-		beer.Rate, beer.Brief, beer.Price)
-
-	var beerImage tgbotapi.InputMediaPhoto
-	beerImage.Media = tgbotapi.FilePath(beer.ImagePath)
-	beerImage.Caption = beer_description
-	beerImage.Type = "photo"
-	editMsg := tgbotapi.EditMessageMediaConfig{
-		BaseEdit: tgbotapi.BaseEdit{
-			ChatID:      UserID,
-			MessageID:   callerID,
-			ReplyMarkup: &keyboards.ArrowsKeys,
-		},
-		Media: beerImage,
-	}
-	if _, err := bot.Request(editMsg); err != nil {
-		panic(err)
-	}
-}
-
-func NextPage(session *models.UserSession, BeerListLenght int) (bool, int) {
-	next_page := session.CurrentPage
-	next_page++
-	if next_page < BeerListLenght {
-		session.SetCurrentPage(next_page)
-		return true, next_page
-	}
-	return false, next_page
-}
-
-func PreviousPage(session *models.UserSession) (bool, int) {
-	prev_page := session.CurrentPage
-	prev_page--
-	if prev_page >= 0 {
-		session.SetCurrentPage(prev_page)
-		return true, prev_page
-	}
-	return false, prev_page
 }

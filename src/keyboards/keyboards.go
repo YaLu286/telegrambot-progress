@@ -19,16 +19,17 @@ var LocationSelectKeys = tgbotapi.NewInlineKeyboardMarkup(
 	),
 )
 
-var CommandKeyboard = tgbotapi.NewReplyKeyboard(
-	tgbotapi.NewKeyboardButtonRow(
-		tgbotapi.NewKeyboardButton("Список"),
-		tgbotapi.NewKeyboardButton("Инфо"),
-	),
-	tgbotapi.NewKeyboardButtonRow(
-		tgbotapi.NewKeyboardButton("Фильтры"),
-		tgbotapi.NewKeyboardButton("Помощь"),
-	),
-)
+// var CommandKeyboard = tgbotapi.NewReplyKeyboard(
+// 	tgbotapi.NewKeyboardButtonRow(
+// 		tgbotapi.NewKeyboardButton("Список"),
+// 		tgbotapi.NewKeyboardButton("Инфо"),
+// 	),
+// 	tgbotapi.NewKeyboardButtonRow(
+// 		tgbotapi.NewKeyboardButton("Фильтры"),
+// 		tgbotapi.NewKeyboardButton("Помощь"),
+// 	),
+// )
+
 var CommandInlineKeyboard = tgbotapi.NewInlineKeyboardMarkup(
 	tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("Список", "list"),
