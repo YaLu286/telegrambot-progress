@@ -19,7 +19,7 @@ func MainMenuHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, beerMap *map[
 		if len(beers) > 0 {
 			(*beerMap)[UserID] = beers
 			session.SetCurrentPage(0)
-			DisplayBeer(bot, UserID, &(*beerMap)[UserID][0], CallerMsgID)
+			DisplayBeer(bot, UserID, &(*beerMap)[UserID][0], CallerMsgID, true, false)
 		} else {
 			DisplayNotFoundMessage(bot, UserID, CallerMsgID)
 		}
@@ -33,8 +33,8 @@ func MainMenuHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, beerMap *map[
 		DisplayLocationSelector(bot, UserID, CallerMsgID)
 		session.SetUserState("location")
 	case "help":
-		// DisplayHelpMessage(bot, UserID, session.Location, CallerMsgID)
-		session.SetUserState("help")
+		DisplayHelpMessage(bot, UserID, CallerMsgID)
+		session.SetUserState("beer_list")
 	}
 }
 
@@ -42,14 +42,22 @@ func ScrollBeerList(bot *tgbotapi.BotAPI, update tgbotapi.Update, beerMap map[in
 
 	UserID, session, CallerMsgID := LoadCallbackInfo(update)
 
+	var first, last = false, false
+
 	switch update.CallbackQuery.Data {
 	case "right":
 		if res, next_page := NextPage(session, len(beerMap[UserID])); res {
-			DisplayBeer(bot, UserID, &beerMap[UserID][next_page], CallerMsgID)
+			if next_page == len(beerMap[UserID])-1 {
+				last = true
+			}
+			DisplayBeer(bot, UserID, &beerMap[UserID][next_page], CallerMsgID, first, last)
 		}
 	case "left":
 		if res, prev_page := PreviousPage(session); res {
-			DisplayBeer(bot, UserID, &beerMap[UserID][prev_page], CallerMsgID)
+			if prev_page == 0 {
+				first = true
+			}
+			DisplayBeer(bot, UserID, &beerMap[UserID][prev_page], CallerMsgID, first, last)
 		}
 	case "backToMenu":
 		DisplayStartMessage(bot, UserID, session.Location, CallerMsgID)

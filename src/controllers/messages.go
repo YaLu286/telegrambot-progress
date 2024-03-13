@@ -59,7 +59,7 @@ func DisplayNotFoundMessage(bot *tgbotapi.BotAPI, UserID int64, CallerID int) {
 	bot.Send(editMsg)
 }
 
-func DisplayBeer(bot *tgbotapi.BotAPI, UserID int64, beer *models.Beer, callerID int) {
+func DisplayBeer(bot *tgbotapi.BotAPI, UserID int64, beer *models.Beer, callerID int, first bool, last bool) {
 	beer_description := fmt.Sprintf("%s от %s \nСтиль: %s\nABV: %.2f Rate: %.2f\n%s\n%d₽",
 		beer.Name, beer.Brewery,
 		beer.Style, beer.ABV,
@@ -77,7 +77,30 @@ func DisplayBeer(bot *tgbotapi.BotAPI, UserID int64, beer *models.Beer, callerID
 		},
 		Media: beerImage,
 	}
+	if first {
+		editMsg.BaseEdit.ReplyMarkup = &keyboards.ArrowsKeysFirst
+	} else if last {
+		editMsg.BaseEdit.ReplyMarkup = &keyboards.ArrowsKeysLast
+	} else {
+		editMsg.BaseEdit.ReplyMarkup = &keyboards.ArrowsKeys
+	}
 	if _, err := bot.Request(editMsg); err != nil {
 		panic(err)
 	}
+}
+
+func DisplayHelpMessage(bot *tgbotapi.BotAPI, UserID int64, CallerID int) {
+	var helpMsg tgbotapi.InputMediaPhoto
+	helpMsg.Media = tgbotapi.FilePath("/images/progress.jpg")
+	helpMsg.Caption = "Нажмите 'Список' для отображения всего ассортимента. Нажмите 'Фильтры' для настройки поисковых фильтров по категориям. Нажмите 'К выбору локации', чтобы сменить вашу локацию."
+	helpMsg.Type = "photo"
+	editMsg := tgbotapi.EditMessageMediaConfig{
+		BaseEdit: tgbotapi.BaseEdit{
+			ChatID:      UserID,
+			MessageID:   CallerID,
+			ReplyMarkup: &keyboards.BackKey,
+		},
+		Media: helpMsg,
+	}
+	bot.Send(editMsg)
 }

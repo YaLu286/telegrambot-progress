@@ -19,17 +19,6 @@ var LocationSelectKeys = tgbotapi.NewInlineKeyboardMarkup(
 	),
 )
 
-// var CommandKeyboard = tgbotapi.NewReplyKeyboard(
-// 	tgbotapi.NewKeyboardButtonRow(
-// 		tgbotapi.NewKeyboardButton("Список"),
-// 		tgbotapi.NewKeyboardButton("Инфо"),
-// 	),
-// 	tgbotapi.NewKeyboardButtonRow(
-// 		tgbotapi.NewKeyboardButton("Фильтры"),
-// 		tgbotapi.NewKeyboardButton("Помощь"),
-// 	),
-// )
-
 var CommandInlineKeyboard = tgbotapi.NewInlineKeyboardMarkup(
 	tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("Список", "list"),
@@ -93,10 +82,28 @@ var BackKey = tgbotapi.NewInlineKeyboardMarkup(
 	),
 )
 
+var ArrowsKeysFirst = tgbotapi.NewInlineKeyboardMarkup(
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("🔽", "right"),
+	),
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Назад в меню", "backToMenu"),
+	),
+)
+
 var ArrowsKeys = tgbotapi.NewInlineKeyboardMarkup(
 	tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("🔼", "left"),
 		tgbotapi.NewInlineKeyboardButtonData("🔽", "right"),
+	),
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Назад в меню", "backToMenu"),
+	),
+)
+
+var ArrowsKeysLast = tgbotapi.NewInlineKeyboardMarkup(
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("🔼", "left"),
 	),
 	tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("Назад в меню", "backToMenu"),
